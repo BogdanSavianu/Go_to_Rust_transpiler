@@ -6,22 +6,22 @@
 
 alpha       [A-Za-z]
 digit       [0-9]
-id          {alpha}[A-Za-z0-9]*
+id          \"*[_]*{alpha}[A-Za-z0-9_]*\"*
 number      {digit}+
+string      \"[^\"]*\"
 
 %%
 
-
-package     return PACKAGE;
+package     { yylval.str = strdup(yytext); return PACKAGE; }
 import      return IMPORT;
 type        return TYPE;
 struct      return STRUCT;
-int         return INT;
-float       return FLOAT;
-string      return STRING;
+int         { yylval.str = strdup(yytext); return INT; }
+float       { yylval.str = strdup(yytext); return FLOAT; }
+string      { yylval.str = strdup(yytext); return STRING; }
 func        return FUNC;
 return      return RETURN;
-":="        return DELCARE_ASSIGN;
+":="        return DECLARE_ASSIGN;
 "="         return ASSIGN;
 "{"         return LBRACE;
 "}"         return RBRACE;
@@ -29,11 +29,17 @@ return      return RETURN;
 ")"         return RPAR;
 "["         return LSTRPAR;
 "]"         return RSTRPAR;
-"+"         return +;
-"-"         return -;
-"*"         return *;
-"/"         return /;
-{id}        return ID;
+"+"         return '+';
+"-"         return '-';
+"*"         return '*';
+"/"         return '/';
+{id}        { yylval.str = strdup(yytext); return ID; }
 {number}    return NUMBER;
-.           ;
+[ \t]       ;
+\n          return NEWLINE;
+.           {printf("Invalid character: %s\n", yytext); exit(1);}
 %%
+
+int yywrap() {
+    return 1;
+}
