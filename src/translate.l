@@ -21,6 +21,9 @@ float       { yylval.str = strdup(yytext); return FLOAT; }
 string      { yylval.str = strdup(yytext); return STRING; }
 func        return FUNC;
 return      return RETURN;
+if          { yylval.str = strdup(yytext); return IF; }
+else        { yylval.str = strdup(yytext); return ELSE; }
+for         return FOR;
 ":="        return DECLARE_ASSIGN;
 "="         return ASSIGN;
 "{"         return LBRACE;
@@ -33,8 +36,10 @@ return      return RETURN;
 "-"         return '-';
 "*"         return '*';
 "/"         return '/';
+"<"         return '<';
+">"         return '>';
 {id}        { yylval.str = strdup(yytext); return ID; }
-{number}    return NUMBER;
+{number}    { yylval.str = strdup(yytext); return NUMBER; }
 [ \t]       ;
 \n          return NEWLINE;
 .           {printf("Invalid character: %s\n", yytext); exit(1);}

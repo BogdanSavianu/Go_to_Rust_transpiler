@@ -73,7 +73,10 @@ extern int yydebug;
     RPAR = 274,                    /* RPAR  */
     LSTRPAR = 275,                 /* LSTRPAR  */
     RSTRPAR = 276,                 /* RSTRPAR  */
-    NEWLINE = 277                  /* NEWLINE  */
+    NEWLINE = 277,                 /* NEWLINE  */
+    IF = 278,                      /* IF  */
+    ELSE = 279,                    /* ELSE  */
+    FOR = 280                      /* FOR  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -102,6 +105,9 @@ extern int yydebug;
 #define LSTRPAR 275
 #define RSTRPAR 276
 #define NEWLINE 277
+#define IF 278
+#define ELSE 279
+#define FOR 280
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
@@ -111,12 +117,14 @@ union YYSTYPE
 
     char *str;
     char *expr;
+    char *block;
+    char *stmt_list;
     struct {
         char* name;
         char* type;
     } param;
 
-#line 120 "y.tab.h"
+#line 128 "y.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

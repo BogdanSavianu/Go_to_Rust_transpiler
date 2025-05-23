@@ -57,13 +57,15 @@
 %union {
     char *str;
     char *expr;
+    char *block;
+    char *stmt_list;
     struct {
         char* name;
         char* type;
     } param;
 }
 
-%token <str> INT FLOAT STRING '+' '-' '*' '/' NUMBER DECLARE_ASSIGN ASSIGN ID PACKAGE IMPORT TYPE STRUCT FUNC RETURN LBRACE RBRACE LPAR RPAR LSTRPAR RSTRPAR NEWLINE
+%token <str> INT FLOAT STRING '+' '-' '*' '/' NUMBER DECLARE_ASSIGN ASSIGN ID PACKAGE IMPORT TYPE STRUCT FUNC RETURN LBRACE RBRACE LPAR RPAR LSTRPAR RSTRPAR NEWLINE IF ELSE FOR
 %type <expr> expr
 %type <str> type
 %type <param> param
@@ -75,6 +77,9 @@
 %type <expr> top_lvl_decl
 %type <expr> func_decl
 %type <expr> struct_decl
+%type <expr> if_stmt
+%type <block> block
+%type <stmt_list> stmt_list
 
 %%
 program
@@ -95,7 +100,7 @@ newlines
     ;
 
 package_decl
-    : PACKAGE ID {fprintf(fptr,"mod %s;\n", $2);}
+    : PACKAGE ID {/*fprintf(fptr,"mod %s;\n", $2);*/}
     ;
 
 import_decls
@@ -114,7 +119,7 @@ top_lvl_decls
 
 top_lvl_decl
     : func_decl { $$ = $1; }
-    | var_decl { $$ = NULL; /* Skip top-level variable declarations */ }
+    | var_decl { $$ = NULL; }
     | struct_decl { $$ = $1; }
     ;
 
@@ -131,10 +136,9 @@ func_decl
             param_list_buffer = NULL;
         }
         fprintf(fptr, "%s) -> %s {\n", temp, convert_type($6));
-        if (current_block) {
-            fprintf(fptr, "%s", current_block);
-            free(current_block);
-            current_block = NULL;
+        if ($7) {
+            fprintf(fptr, "%s", $7);
+            free($7);
         }
         fprintf(fptr, "}\n");
         $$ = temp;
@@ -150,7 +154,7 @@ param_list_nonempty
     : param {
         param_list_buffer = strdup($1.name);
         char* temp;
-        asprintf(&temp, "%s: %s", $1.name, $1.type);
+        asprintf(&temp, "%s: %s", $1.name, convert_type($1.type));
         param_list_buffer = temp;
     }
     | param_list_nonempty ',' param {
@@ -170,7 +174,7 @@ param
     ;
 
 type
-    : /* empty */ { $$ = NULL; }
+    : { $$ = NULL; }
     | INT { $$ = $1; }
     | FLOAT { $$ = $1; }
     | STRING { $$ = $1; }
@@ -178,20 +182,27 @@ type
 
 block
     : LBRACE newlines stmt_list newlines RBRACE {
-        // Don't create new string, use what's accumulated
-        if (!current_block) {
-            current_block = strdup("");
-        }
+        $$ = $3 ? strdup($3) : strdup("");
+        printf("DEBUG: Block content: '%s'\n", $$);
+        if ($3) free($3);
     }
     ;
 
 stmt_list
-    : { current_block = strdup(""); }
+    : { 
+        $$ = strdup(""); 
+        printf("DEBUG: Empty stmt_list\n");
+    }
     | stmt_list newlines statement {
         if ($3) {
-            char* temp = current_block;
-            asprintf(&current_block, "%s    %s\n", temp ? temp : "", $3);
-            free(temp);
+            asprintf(&$$, "%s    %s\n", $1 ? $1 : "", $3);
+            printf("DEBUG: Adding statement '%s' to stmt_list. Result: '%s'\n", $3, $$);
+            if ($1) free($1);
+            if ($3) free($3);
+        } else {
+            $$ = $1 ? strdup($1) : strdup("");
+            printf("DEBUG: No statement to add, keeping: '%s'\n", $$);
+            if ($1) free($1);
         }
     }
     ;
@@ -200,7 +211,7 @@ statement
     : expr_stmt { $$ = $1; }
     | return_stmt { $$ = $1; }
     | var_decl { $$ = $1; }
-    | if_stmt { $$ = ""; }
+    | if_stmt { $$ = $1; }
     | while_stmt { $$ = ""; }
     | for_stmt { $$ = ""; }
     ;
@@ -212,7 +223,7 @@ expr_stmt
 var_decl
     : ID DECLARE_ASSIGN expr {
         char* temp;
-        asprintf(&temp, "let %s = %s;", $1, $3);
+        asprintf(&temp, "let mut %s = %s;", $1, $3);
         $$ = temp;
     }
     ;
@@ -222,7 +233,25 @@ struct_decl
     ;
 
 if_stmt
-    :
+    : IF expr block {
+        char* temp;
+        asprintf(&temp, "if %s {\n%s    }", $2, $3 ? $3 : "");
+        $$ = temp;
+        if ($3) free($3);
+    }
+    | IF expr block ELSE block {
+        char* temp;
+        asprintf(&temp, "if %s {\n    %s    } else {\n    %s    }", $2, $3 ? $3 : "", $5 ? $5 : "");
+        $$ = temp;
+        if ($3) free($3);
+        if ($5) free($5);
+    }
+    | IF expr block ELSE if_stmt {
+        char* temp;
+        asprintf(&temp, "if %s {\n%s    } else %s", $2, $3 ? $3 : "", $5 ? $5 : "");
+        $$ = temp;
+        if ($3) free($3);
+    }
     ;
 
 while_stmt
@@ -242,7 +271,7 @@ return_stmt
     ;
 
 returnable
-    : /* empty */ { $$ = strdup(""); }
+    : { $$ = strdup(""); }
     | expr { $$ = $1; }
     ;
 
@@ -254,7 +283,7 @@ expr
     }
     | ID DECLARE_ASSIGN expr { 
         char* temp;
-        asprintf(&temp, "let %s = %s;", $1, $3);
+        asprintf(&temp, "let mut %s = %s;", $1, $3);
         $$ = temp;
     }
     | ID '(' arg_list ')' {
@@ -280,6 +309,16 @@ expr
     | expr '/' expr { 
         char* temp;
         asprintf(&temp, "%s / %s", $1, $3);
+        $$ = temp;
+    }
+    | expr '<' expr { 
+        char* temp;
+        asprintf(&temp, "%s < %s", $1, $3);
+        $$ = temp;
+    }
+    | expr '>' expr { 
+        char* temp;
+        asprintf(&temp, "%s > %s", $1, $3);
         $$ = temp;
     }
     | ID { $$ = $1; }
