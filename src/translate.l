@@ -24,8 +24,10 @@ return      return RETURN;
 if          { yylval.str = strdup(yytext); return IF; }
 else        { yylval.str = strdup(yytext); return ELSE; }
 for         return FOR;
+while       return WHILE;
 ":="        return DECLARE_ASSIGN;
 "="         return ASSIGN;
+"=="        return EQUALS;
 "{"         return LBRACE;
 "}"         return RBRACE;
 "("         return LPAR;
@@ -36,8 +38,10 @@ for         return FOR;
 "-"         return '-';
 "*"         return '*';
 "/"         return '/';
+"%"         { yylval.str = strdup("%"); return '%'; }
 "<"         return '<';
 ">"         return '>';
+";"         return ';';  
 {id}        { yylval.str = strdup(yytext); return ID; }
 {number}    { yylval.str = strdup(yytext); return NUMBER; }
 [ \t]       ;

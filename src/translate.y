@@ -1,5 +1,5 @@
 %{
-    #define _GNU_SOURCE         /* for asprintf */
+    #define _GNU_SOURCE
     #include <stdio.h>
     #include <stdlib.h>
     #include <string.h>
@@ -65,7 +65,7 @@
     } param;
 }
 
-%token <str> INT FLOAT STRING '+' '-' '*' '/' NUMBER DECLARE_ASSIGN ASSIGN ID PACKAGE IMPORT TYPE STRUCT FUNC RETURN LBRACE RBRACE LPAR RPAR LSTRPAR RSTRPAR NEWLINE IF ELSE FOR
+%token <str> INT FLOAT STRING '+' '-' '*' '/' '%' ';' NUMBER DECLARE_ASSIGN ASSIGN EQUALS ID PACKAGE IMPORT TYPE STRUCT FUNC RETURN LBRACE RBRACE LPAR RPAR LSTRPAR RSTRPAR NEWLINE IF ELSE FOR WHILE
 %type <expr> expr
 %type <str> type
 %type <param> param
@@ -78,6 +78,8 @@
 %type <expr> func_decl
 %type <expr> struct_decl
 %type <expr> if_stmt
+%type <expr> while_stmt
+%type <expr> for_stmt
 %type <block> block
 %type <stmt_list> stmt_list
 
@@ -90,7 +92,7 @@ newlines
     : 
     | newlines NEWLINE {
             if (print_newline_flag) {
-                fprintf(fptr, "\n");
+                //fprintf(fptr, "\n");
             } else {
                 print_newline_flag = 1;
                 break;
@@ -135,7 +137,12 @@ func_decl
             free(param_list_buffer);
             param_list_buffer = NULL;
         }
-        fprintf(fptr, "%s) -> %s {\n", temp, convert_type($6));
+        const char* return_type = convert_type($6);
+        if (strcmp(return_type, "()") != 0) {
+            fprintf(fptr, "%s) -> %s {\n", temp, return_type);
+        } else {
+        fprintf(fptr, "%s) {\n", temp);
+        }
         if ($7) {
             fprintf(fptr, "%s", $7);
             free($7);
@@ -191,12 +198,10 @@ block
 stmt_list
     : { 
         $$ = strdup(""); 
-        printf("DEBUG: Empty stmt_list\n");
     }
     | stmt_list newlines statement {
         if ($3) {
             asprintf(&$$, "%s    %s\n", $1 ? $1 : "", $3);
-            printf("DEBUG: Adding statement '%s' to stmt_list. Result: '%s'\n", $3, $$);
             if ($1) free($1);
             if ($3) free($3);
         } else {
@@ -212,8 +217,8 @@ statement
     | return_stmt { $$ = $1; }
     | var_decl { $$ = $1; }
     | if_stmt { $$ = $1; }
-    | while_stmt { $$ = ""; }
-    | for_stmt { $$ = ""; }
+    | while_stmt { $$ = $1; }
+    | for_stmt { $$ = $1; }
     ;
 
 expr_stmt
@@ -235,7 +240,7 @@ struct_decl
 if_stmt
     : IF expr block {
         char* temp;
-        asprintf(&temp, "if %s {\n%s    }", $2, $3 ? $3 : "");
+        asprintf(&temp, "if %s {\n    %s    }", $2, $3 ? $3 : "");
         $$ = temp;
         if ($3) free($3);
     }
@@ -248,18 +253,37 @@ if_stmt
     }
     | IF expr block ELSE if_stmt {
         char* temp;
-        asprintf(&temp, "if %s {\n%s    } else %s", $2, $3 ? $3 : "", $5 ? $5 : "");
+        asprintf(&temp, "if %s {\n    %s    } else %s", $2, $3 ? $3 : "", $5 ? $5 : "");
         $$ = temp;
         if ($3) free($3);
     }
     ;
 
 while_stmt
-    :
+    : WHILE expr block {
+        char* temp;
+        asprintf(&temp, "while %s {\n    %s    }", $2, $3 ? $3 : "");
+        $$ = temp;
+        if ($3) free($3);
+    }
     ;
 
 for_stmt
-    :
+    : FOR ID DECLARE_ASSIGN expr ';' expr ';' ID ASSIGN expr block {
+        char* temp;
+        char* end_term = $6;
+        int i = 0;
+        while (end_term[i] && end_term[i] != '<' && end_term[i] != '>') i++;
+        end_term += i + 1;
+        asprintf(&temp, "for %s in %s..%s {\n    %s}", $2, $4, end_term, $11 ? $11 : "");
+        $$ = temp;
+        if ($11) free($11);
+        if ($2) free($2);
+        if ($4) free($4);
+        if ($6) free($6);
+        if ($8) free($8);
+        if ($10) free($10);
+    }
     ;
 
 return_stmt
@@ -286,6 +310,11 @@ expr
         asprintf(&temp, "let mut %s = %s;", $1, $3);
         $$ = temp;
     }
+    | expr EQUALS expr { 
+        char* temp;
+        asprintf(&temp, "%s == %s", $1, $3);
+        $$ = temp;
+    }
     | ID '(' arg_list ')' {
         char* temp;
         asprintf(&temp, "%s()", $1);
@@ -310,6 +339,13 @@ expr
         char* temp;
         asprintf(&temp, "%s / %s", $1, $3);
         $$ = temp;
+    }
+    | expr '%' expr { 
+        char* temp;
+        asprintf(&temp, "%s %% %s", $1, $3);
+        $$ = temp;
+        if ($1) free($1);
+        if ($3) free($3);
     }
     | expr '<' expr { 
         char* temp;
