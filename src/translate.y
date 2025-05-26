@@ -42,7 +42,7 @@
     }
 
     const char* convert_type(const char* go_type) {
-        if (!go_type) return "()";  // void in Rust
+        if (!go_type) return "()";
         if (strcmp(go_type, "int") == 0) return "i32";
         if (strcmp(go_type, "float") == 0) return "f64";
         if (strcmp(go_type, "string") == 0) return "String";
@@ -68,6 +68,7 @@
 %token <str> INT FLOAT STRING '+' '-' '*' '/' '%' ';' NUMBER DECLARE_ASSIGN ASSIGN EQUALS ID PACKAGE IMPORT TYPE STRUCT FUNC RETURN LBRACE RBRACE LPAR RPAR LSTRPAR RSTRPAR NEWLINE IF ELSE FOR WHILE
 %type <expr> expr
 %type <str> type
+%type <str> newlines
 %type <param> param
 %type <expr> statement
 %type <expr> expr_stmt
@@ -92,7 +93,7 @@ newlines
     : 
     | newlines NEWLINE {
             if (print_newline_flag) {
-                //fprintf(fptr, "\n");
+                $$ = "\n";
             } else {
                 print_newline_flag = 1;
                 break;
